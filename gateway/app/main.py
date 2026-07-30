@@ -22,15 +22,24 @@ class BiometricPayload(BaseModel):
     prompt_context: Optional[str] = Field(default=None, max_length=2000)
 
 
-EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 TOKEN_PATTERN = re.compile(r"\b[A-Za-z0-9_\-]{20,}\b")
+
+
+def _redact_email_like_tokens(text: str) -> str:
+    redacted_parts = []
+    for part in text.split():
+        if "@" in part and "." in part.rsplit("@", 1)[-1]:
+            redacted_parts.append("[redacted-email]")
+        else:
+            redacted_parts.append(part)
+    return " ".join(redacted_parts)
 
 
 def _sanitize_prompt(prompt_context: Optional[str]) -> Optional[str]:
     if not prompt_context:
         return None
 
-    sanitized = EMAIL_PATTERN.sub("[redacted-email]", prompt_context)
+    sanitized = _redact_email_like_tokens(prompt_context)
     sanitized = TOKEN_PATTERN.sub("[redacted-token]", sanitized)
     return sanitized[:512]
 
