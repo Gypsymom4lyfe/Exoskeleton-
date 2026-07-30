@@ -86,12 +86,7 @@ def run_simulation():
             response = requests.post(GATEWAY_URL, json=payload, timeout=3)
             if response.status_code in (200, 201):
                 timestamp = datetime.now().strftime("%H:%M:%S")
-                print(
-                    f"[{timestamp}] Sent -> HR: {payload['heart_rate']} BPM | "
-                    f"HRV: {payload['hrv_ms']} ms | "
-                    f"Steps: {payload['step_count']} | "
-                    f"SpO2: {payload['spo2']}%"
-                )
+                print(f"[{timestamp}] Telemetry payload delivered successfully")
             else:
                 print(f"[ERROR] Gateway responded with status {response.status_code}: {response.text}")
         except requests.exceptions.RequestException as e:
