@@ -1,46 +1,86 @@
-# Exoskeleton-
-Body enhancement 
-Mechanical & Electrical Charging Integration
-Instead of forcing a user to unstrap from a suit to plug into a wall, the vehicle seat itself acts as the dock and charging hub.
-Inductive / Wireless Charging Seats:
-The backrest and seat cushion of the vehicle could feature embedded high-efficiency inductive charging coils. Matching reception coils built into the frame or battery harness of the exoskeleton would align automatically when the driver or passenger sits down. No cables, no plug-in hassle—just immediate charging upon sitting.
-Direct Physical Docking (Smart Couplers):
-For faster, high-wattage charging, the seat could feature self-aligning magnetic pin connectors (similar to oversized MagSafe or heavy-duty industrial busbar connectors). As you lean back, the exoskeleton docks into the seat frame, establishing both power charging and vehicle-to-suit data transfer.
-2. Capturing the "Motion of the Car"
-Harvesting energy directly from the car's movement to charge the suit can be approached in two primary ways:
-A. Regenerative Vehicle Suspension (E-Dampers)
-Standard car shock absorbers waste a massive amount of kinetic energy as heat when damping bumps and road vibrations.
-The Mechanism: By fitting the vehicle with electromechanical suspension dampers (rotary or linear generators in place of standard fluid shocks), the up-and-down motion of the car translates into rotational kinetic energy.
-Direct Routing: This kinetic energy is converted into electrical energy and fed directly into the vehicle's secondary power bus, which immediately trickles or fast-charges the exoskeleton docked in the seat.
-B. Kinetic / Micro-Vibration Harvesting in the Suit
-Piezoelectric & Magnetostrictive Elements: Materials embedded within the joints or structural frame of the exoskeleton can convert subtle mechanical stress and ambient road vibration directly into micro-currents. While this yields less total power than electromagnetic dampers, it provides a continuous, low-level charge baseline whenever the suit is under dynamic tension in a moving cabin.
-3. Ergonomic & Safety Advantages
-Merging the suit with the vehicle seat solved two major engineering hurdles at once: structural support and safety harness synergy.
-Load-Bearing Transit Support: Sitting in a vehicle while wearing a rigid external frame can be uncomfortable. If the seat is designed as a female dock for the male exoskeleton, the seat frame takes the physical weight of the suit off the human body while driving.
-Integrated Crash Protection: The suit's rigid spine and hip structures can lock securely into the vehicle chassis upon impact detection, acting as an integrated dynamic safety cage alongside seatbelts and airbags.
-Summary Overview
+## Exoskeleton Telemetry Project
 
-## Telemetry Stack (Local Development)
+Exoskeleton is a biometric telemetry simulation and streaming project designed to generate realistic physiological signals and send them to a telemetry gateway for ingestion, storage, and visualization.
 
-This repository now includes a local telemetry stack with:
-- FastAPI telemetry gateway (`/gateway`)
-- local telemetry processor (`/telemetry-processor`)
-- webhook ingestion service (`/webhook-ingestion`)
-- InfluxDB + Grafana via Docker Compose
+## Current Scope
 
-### Setup
+- Simulate biological metrics in real time:
+  - Heart Rate (BPM)
+  - HRV (ms)
+  - Step Count
+  - SpO2 (%)
+- Stream telemetry payloads to a configurable gateway endpoint
+- Validate end-to-end flow in InfluxDB and Grafana
+- Run a local telemetry stack with gateway, processor, webhook ingestion, InfluxDB, and Grafana
 
-1. Copy `.env.example` to `.env` and set secure local values.
-2. Start the stack:
+## Repository Structure
+
+- `simulators/physiology_telemetry_generator.py` — main telemetry simulator
+- `requirements.txt` — Python dependencies
+- `docs/architecture.md` — architecture and data flow
+- `docs/runbook.md` — run/validate/troubleshooting guide
+- `docs/ideas.md` — idea backlog and roadmap notes
+- `CHANGELOG.md` — release and change history
+- `docker-compose.yml` — local telemetry stack
+- `gateway/` — privacy-safe FastAPI telemetry ingress
+- `telemetry-processor/` — local processor writing normalized metrics to InfluxDB
+- `webhook-ingestion/` — webhook entrypoint forwarding to gateway
+- `grafana/provisioning/datasources/influxdb.yml` — Grafana datasource provisioning
+
+## Setup
+
+Install simulator dependencies from repository root:
+
+```bash
+pip install -r requirements.txt
+```
+
+For local stack configuration, copy `.env.example` to `.env` and set secure local values.
+
+## Run
+
+Run the telemetry simulator:
+
+```bash
+python simulators/physiology_telemetry_generator.py
+```
+
+Optional environment variable override for gateway:
+
+**macOS/Linux**
+```bash
+export GATEWAY_URL="http://localhost:8000/api/v1/telemetry"
+python simulators/physiology_telemetry_generator.py
+```
+
+**Windows (PowerShell)**
+```powershell
+$env:GATEWAY_URL="http://localhost:8000/api/v1/telemetry"
+python simulators/physiology_telemetry_generator.py
+```
+
+Run the local telemetry stack:
 
 ```bash
 docker compose up --build -d
 ```
 
-### Endpoints
+## Validation
 
-- Gateway health: `http://localhost:8000/health`
-- Gateway ingest: `POST http://localhost:8000/api/v1/telemetry`
-- Webhook ingest: `POST http://localhost:8100/webhook/telemetry`
-- InfluxDB UI: `http://localhost:8086`
-- Grafana UI: `http://localhost:3000`
+1. **Terminal Stream**
+   - Verify continuous payload output
+   - Confirm state transitions appear (`RESTING`, `WALKING`, `EXERTION`)
+2. **Gateway Health**
+   - Open http://localhost:8000/health
+   - Confirm gateway is online
+3. **InfluxDB**
+   - Open http://localhost:8086
+   - Confirm new points are written to the biometrics bucket
+4. **Grafana**
+   - Open http://localhost:3000
+   - Confirm Heart Rate and HRV panels update in real time
+
+## Notes
+
+- Default post interval is 2 seconds
+- Stop stream with `CTRL+C`
