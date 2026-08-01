@@ -1,0 +1,149 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Exoskeleton Telemetry Stack
+#
+# Services
+#   webhook-ingestion   – receives raw wearable / webhook payloads (port 8080)
+#   telemetry-processor – normalises, aggregates, and writes to InfluxDB (9000)
+#   fastapi-gateway     – public API entrypoint for clients (port 8000)
+#   influxdb            – time-series storage v2.x (port 8086)
+#   grafana             – dashboards (port 3000)
+#
+# Usage
+#   cp .env.example .env          # fill in real secrets
+#   docker compose up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Webhook ingestion ──────────────────────────────────────────────────────
+  webhook-ingestion:
+    build:
+      context: ./services/webhook-ingestion
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      TELEMETRY_PROCESSOR_URL: ${TELEMETRY_PROCESSOR_URL:-http://telemetry-processor:9000}
+    depends_on:
+      telemetry-processor:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - telemetry-net
+
+  # ── Local telemetry processor ──────────────────────────────────────────────
+  telemetry-processor:
+    build:
+      context: ./services/telemetry-processor
+    ports:
+      - "9000:9000"
+    env_file:
+      - .env
+    environment:
+      INFLUXDB_URL: ${INFLUXDB_URL:-http://influxdb:8086}
+      INFLUXDB_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_INIT_ORG:-exoskeleton}
+      INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET:-bodymatrix}
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - telemetry-net
+
+  # ── FastAPI gateway ────────────────────────────────────────────────────────
+  fastapi-gateway:
+    build:
+      context: ./services/gateway
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      TELEMETRY_PROCESSOR_URL: ${TELEMETRY_PROCESSOR_URL:-http://telemetry-processor:9000}
+    depends_on:
+      telemetry-processor:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - telemetry-net
+
+  # ── InfluxDB v2 ────────────────────────────────────────────────────────────
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    env_file:
+      - .env
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: ${INFLUXDB_INIT_MODE:-setup}
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_INIT_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_INIT_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_INIT_ORG:-exoskeleton}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_INIT_BUCKET:-bodymatrix}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN}
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - telemetry-net
+
+  # ── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    volumes:
+      - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - telemetry-net
+
+# ── Persistent volumes ─────────────────────────────────────────────────────
+volumes:
+  influxdb-data:
+  grafana-data:
+
+# ── Isolated internal network ──────────────────────────────────────────────
+networks:
+  telemetry-net:
+    driver: bridge
